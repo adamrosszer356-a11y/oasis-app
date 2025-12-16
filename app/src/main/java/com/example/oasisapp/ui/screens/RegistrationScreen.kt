@@ -1,6 +1,7 @@
 // ui/screens/RegistrationScreen.kt
 package com.example.oasisapp.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,21 +11,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
+import com.example.oasisapp.network.RetrofitClient
+import com.example.oasisapp.network.RegisterRequest
 
 @Composable
 fun RegistrationScreen(
     onRegister: () -> Unit,
     onBackToLogin: () -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var acceptTerms by remember { mutableStateOf(false) }
     var acceptPrivacy by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
 
     val canRegister =
         name.isNotBlank() &&
@@ -46,7 +55,8 @@ fun RegistrationScreen(
             onClick = onBackToLogin,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(16.dp)
+                .padding(16.dp),
+            enabled = !isLoading
         ) {
             Text("← Vissza")
         }
@@ -148,14 +158,46 @@ fun RegistrationScreen(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
-                        onClick = { if (canRegister) onRegister() },
+                        onClick = {
+                            if (canRegister) {
+                                isLoading = true
+                                scope.launch {
+                                    try {
+                                        val response = RetrofitClient.api.register(
+                                            RegisterRequest(
+                                                name = name,
+                                                email = email,
+                                                password = password
+                                            )
+                                        )
+                                        if (response.success) {
+                                            Toast.makeText(context, "Sikeres regisztráció!", Toast.LENGTH_SHORT).show()
+                                            onRegister()
+                                        } else {
+                                            Toast.makeText(context, "Hiba: ${response.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Hálózati hiba: ${e.message}", Toast.LENGTH_LONG).show()
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp),
-                        enabled = canRegister,
+                        enabled = canRegister && !isLoading,
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Text("Regisztráció")
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Text("Regisztráció")
+                        }
                     }
                 }
             }
