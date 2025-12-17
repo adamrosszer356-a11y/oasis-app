@@ -8,8 +8,8 @@ header("Access-Control-Allow-Methods: GET, POST");
 // Adatbázis konfiguráció
 $servername = "localhost";
 $username = "root";       
-$password = "";           // Ha van jelszó, írd át ide (pl. "admin")
-$dbname = "plantbox";     // A megadott új adatbázis neve
+$password = "admin";           // Ha van jelszó, írd át ide (pl. "admin")
+$dbname = "oasis";     // A megadott új adatbázis neve
 
 // Kapcsolódás
 $conn = new mysqli($servername, $username, $password, $dbname);

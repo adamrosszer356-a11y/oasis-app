@@ -1,36 +1,43 @@
--- Adatbázis létrehozása
-CREATE DATABASE IF NOT EXISTS oasis_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE oasis_db;
+-- Ajánlott: egy külön adatbázis
+CREATE DATABASE IF NOT EXISTS plantbox
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_hungarian_ci;
 
--- Felhasználók (users) tábla
--- A RegistrationScreen.kt és LoginScreen.kt alapján
+USE plantbox;
+
+-- 1) Users tábla
 CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL, -- Jelszó hash tárolására
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+  id        INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  username  VARCHAR(50)  NOT NULL,
+  pass      VARCHAR(255) NOT NULL,      -- jelszó hash (pl. password_hash)
+  email     VARCHAR(255) NOT NULL,
+  name      VARCHAR(100) NOT NULL,
 
--- Eszközök (boxes) tábla
--- Az api_server_code.php mock adatai alapján
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_users_username (username),
+  UNIQUE KEY uq_users_email (email)
+) ENGINE=InnoDB;
+
+-- 2) Boxes tábla
 CREATE TABLE IF NOT EXISTS boxes (
-    id VARCHAR(50) PRIMARY KEY,       -- Az eszköz egyedi azonosítója (pl. "oasis-001")
-    user_id INT NOT NULL,             -- Tulajdonos azonosítója
-    name VARCHAR(100) NOT NULL,       -- Eszköz neve (pl. "Nappali Oázis")
-    plant_name VARCHAR(100),          -- Növény neve (pl. "Monstera Deliciosa")
-    status VARCHAR(20) DEFAULT 'offline', -- Státusz: 'online' vagy 'offline'
-    moisture INT DEFAULT 0,           -- Talajnedvesség (0-100)
-    light INT DEFAULT 0,              -- Fényerő (0-100)
-    temp DECIMAL(4, 1) DEFAULT 0.0,   -- Hőmérséklet (pl. 23.5)
-    battery INT DEFAULT 0,            -- Akkumulátor szint (0-100)
-    last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+  box_id     INT UNSIGNED NOT NULL AUTO_INCREMENT,  -- doboz azonosító
+  owner_id   INT UNSIGNED NOT NULL,                 -- hivatkozás: users.id
 
--- Opcionális: Teszt adatok
--- Jelszó: "password123" (Ez csak példa, élesben hash-elni kell PHP-ban password_hash()-el!)
--- INSERT INTO users (name, email, password) VALUES ('Teszt Felhasználó', 'test@example.com', '$2y$10$EXAMPLEHASH...');
+  name       VARCHAR(100) NOT NULL,                 -- doboz neve
+  plant      VARCHAR(100) NULL,                     -- növény fajtája
 
--- INSERT INTO boxes (id, user_id, name, plant_name, status, moisture, light, temp, battery) 
--- VALUES ('oasis-001', 1, 'Nappali Oázis (Szerverről)', 'Monstera Deliciosa', 'online', 62, 45, 23.5, 88);
+  szarassag  FLOAT NULL,
+  feny       FLOAT NULL,
+  ho         FLOAT NULL,
+  para       FLOAT NULL,
+  legnyomas  FLOAT NULL,
+  vizszint   FLOAT NULL,
+
+  PRIMARY KEY (box_id),
+  KEY idx_boxes_owner_id (owner_id),
+
+  CONSTRAINT fk_boxes_owner
+    FOREIGN KEY (owner_id) REFERENCES users(id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB;
