@@ -3,6 +3,8 @@ package com.example.oasisapp.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -15,8 +17,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.window.Dialog
 import com.example.oasisapp.network.AddDeviceRequest
 import com.example.oasisapp.network.RetrofitClient
+import com.example.oasisapp.network.SensorLogEntry
 import com.example.oasisapp.network.WaterPlantRequest
 import kotlinx.coroutines.launch
 
@@ -40,6 +44,7 @@ fun DevicesScreen(paddingValues: PaddingValues) {
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedDevice by remember { mutableStateOf<Device?>(null) }
+    var logDevice by remember { mutableStateOf<Device?>(null) }
 
     // TODO: A felhasználó ID-t dinamikusan kellene kezelni
     val userId = 1
@@ -97,7 +102,6 @@ fun DevicesScreen(paddingValues: PaddingValues) {
                         )
                         if (response.success) {
                             Toast.makeText(context, "Öntözés elindítva!", Toast.LENGTH_SHORT).show()
-                            // Itt frissíthetjük az eszköz állapotát, ha szükséges
                             selectedDevice = null 
                         } else {
                             Toast.makeText(context, "Hiba: ${response.message}", Toast.LENGTH_LONG).show()
@@ -106,7 +110,18 @@ fun DevicesScreen(paddingValues: PaddingValues) {
                         Toast.makeText(context, "Hálózati hiba: ${e.message}", Toast.LENGTH_LONG).show()
                     }
                 }
+            },
+            onShowLog = {
+                logDevice = selectedDevice
+                selectedDevice = null
             }
+        )
+    }
+
+    if (logDevice != null) {
+        LogDialog(
+            device = logDevice!!,
+            onDismiss = { logDevice = null }
         )
     }
 
@@ -216,6 +231,134 @@ fun DevicesScreen(paddingValues: PaddingValues) {
 }
 
 @Composable
+fun LogDialog(
+    device: Device,
+    onDismiss: () -> Unit
+) {
+    var logs by remember { mutableStateOf<List<SensorLogEntry>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(device.id) {
+        try {
+            logs = RetrofitClient.api.getDeviceLog(boxId = device.id)
+        } catch (e: Exception) {
+            // Hiba kezelése
+        } finally {
+            isLoading = false
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.8f),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "${device.name} - Előzmények",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (isLoading) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else if (logs.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Nincsenek elérhető adatok.")
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        items(logs) { entry ->
+                            LogItem(entry)
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Bezárás")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LogItem(entry: SensorLogEntry) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(text = entry.timestamp, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+        
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Nedv: ${entry.szarassag ?: 0}%", fontSize = 11.sp)
+            Text("Hő: ${entry.ho ?: 0}°C", fontSize = 11.sp)
+            Text("Fény: ${entry.feny ?: 0}%", fontSize = 11.sp)
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Pára: ${entry.para ?: 0}%", fontSize = 11.sp)
+            Text("Nyomás: ${entry.legnyomas ?: 0}hPa", fontSize = 11.sp)
+            Text("Vízszint: ${entry.vizszint ?: 0}%", fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+fun DeviceControlDialog(
+    device: Device,
+    onDismiss: () -> Unit,
+    onWater: (String, Int) -> Unit,
+    onShowLog: () -> Unit
+) {
+    var waterAmount by remember { mutableStateOf(100f) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(device.name) },
+        text = {
+            Column {
+                Text("Növény: ${device.plantName}")
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Text("Öntözés mennyisége: ${waterAmount.toInt()} ml")
+                Slider(
+                    value = waterAmount,
+                    onValueChange = { waterAmount = it },
+                    valueRange = 50f..500f,
+                    steps = 8
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                OutlinedButton(
+                    onClick = onShowLog,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("📜 Log megtekintése")
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onWater(device.id, waterAmount.toInt()) }
+            ) {
+                Text("Öntözés")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Mégse")
+            }
+        }
+    )
+}
+
+@Composable
 fun AddDeviceDialog(
     onDismiss: () -> Unit,
     onAdd: (String, String) -> Unit
@@ -257,46 +400,6 @@ fun AddDeviceDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Mégse")
-            }
-        }
-    )
-}
-
-@Composable
-fun DeviceControlDialog(
-    device: Device,
-    onDismiss: () -> Unit,
-    onWater: (String, Int) -> Unit
-) {
-    var waterAmount by remember { mutableStateOf(100f) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(device.name) },
-        text = {
-            Column {
-                Text("Növény: ${device.plantName}")
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Text("Öntözés mennyisége: ${waterAmount.toInt()} ml")
-                Slider(
-                    value = waterAmount,
-                    onValueChange = { waterAmount = it },
-                    valueRange = 50f..500f,
-                    steps = 8
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onWater(device.id, waterAmount.toInt()) }
-            ) {
-                Text("Öntözés")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Bezárás")
             }
         }
     )

@@ -192,6 +192,25 @@ switch ($action) {
         }
         break;
 
+    case 'get_device_log':
+        $boxId = $_GET['box_id'] ?? $input['box_id'] ?? 0;
+        $limit = $_GET['limit'] ?? 100;
+
+        if (empty($boxId)) {
+            $response = ["success" => false, "message" => "Box ID required"];
+            break;
+        }
+
+        // Feltételezve, hogy létezik a sensor_log tábla
+        $stmt = $conn->prepare("SELECT * FROM sensor_log WHERE box_id = ? ORDER BY timestamp DESC LIMIT ?");
+        $stmt->bind_param("ii", $boxId, $limit);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $log_data = $result->fetch_all(MYSQLI_ASSOC);
+
+        echo json_encode($log_data);
+        exit;
+
     default:
         $response = ["success" => false, "message" => "Invalid action"];
         break;

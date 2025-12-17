@@ -36,4 +36,11 @@ interface OasisApi {
         @Body request: WaterPlantRequest,
         @Query("action") action: String = "water_plant"
     ): WaterPlantResponse
+
+    @GET("api.php")
+    suspend fun getDeviceLog(
+        @Query("action") action: String = "get_device_log",
+        @Query("box_id") boxId: String,
+        @Query("limit") limit: Int = 100
+    ): List<SensorLogEntry>
 }

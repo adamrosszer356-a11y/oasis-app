@@ -52,3 +52,15 @@ data class WaterPlantResponse(
     val success: Boolean,
     val message: String
 )
+
+data class SensorLogEntry(
+    val id: Int,
+    val box_id: Int,
+    val timestamp: String,
+    val szarassag: Float?,
+    val feny: Float?,
+    val ho: Float?,
+    val para: Float?,
+    val legnyomas: Float?,
+    val vizszint: Float?
+)
